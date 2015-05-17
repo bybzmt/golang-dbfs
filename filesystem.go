@@ -14,6 +14,12 @@ var (
 var ErrDirNotEmpty = errors.New("Dir Not Empty")
 
 type filesystem struct {
+	DirCache *nodeCache
+	FileCache *nodeCache
+	StorageCache *storageCache
+	Master *sql.DB
+	Slave *sql.DB
+	Root *RowNode
 }
 
 func (s *filesystem) Chomd(name string, mode os.FileMode) error {
@@ -27,49 +33,37 @@ func (s *filesystem) Chtimes(name string, atime time.Time, mtime time.Time) erro
 func (s *filesystem) Mkdir(name string, perm os.FileMode) error {
 	dir, file := path.Split(name)
 
-	node, err := find_node(dir)
+	node, err := find_path(dir)
 	if err != nil {
 		return err
 	}
 
-	if node.IsDir() {
-		_, err := table_node.insert(node.Id, name)
-		return err
-	}
-
-	return ErrNotDir
+	return node.do_mkdir(file)
 }
 
 func (s *filesystem) MkdirAll(name string, perm os.FileMode) error {
-	dir, file := path.Split(name)
+	name = path.Clean(name)
+	name = strings.TrimLeft(name, "/")
+	names := strings.Split(name, "/")
 
-	node, err := find_node(dir)
-	if err != nil {
-		if err == ErrNoRows {
-			e2 := s.MkdirAll(dir)
-			if e2 != nil {
-				return e2
-			} else {
-				node, err = find_node(dir)
-				if err != nil {
-					return err
-				}
+	dir = s.Root
+
+	for _, ph := range names {
+		node, err := dir.find(ph)
+		if err != nil {
+			node, err = dir.mkdir(ph)
+			if err != nil {
+				return err
 			}
-		} else {
-			return err
 		}
+		dir = node
 	}
 
-	if node.IsDir() {
-		_, err := table_node.insert(node.Id, name)
-		return err
-	}
-
-	return ErrNotDir
+	return nil
 }
 
 func (s *filesystem) Remove(name string) error {
-	node, err := find_node(name)
+	node, err := find_path(name)
 	if err != nil {
 		return err
 	}

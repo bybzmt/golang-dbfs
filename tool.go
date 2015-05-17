@@ -20,7 +20,9 @@ func find_dir_id(name string) (uint32, error) {
 	return getDB().get_dir_id(did, file)
 }
 
-func find_node(name string) (*RowNode, error) {
+func find_path(name string) (node *RowNode, err error) {
+	name = path.Clean(name)
+
 	if name == "/" {
 		r := new(RowNode)
 		r.Id = 0
@@ -29,14 +31,27 @@ func find_node(name string) (*RowNode, error) {
 		return r, nil
 	}
 
-	dir, file := path.Split(name)
+	name = strings.Trim(name, "/")
+	names := strings.Split(name, "/")
 
-	did, err := find_dir_id(dir)
-	if err != nil {
-		return nil, err
+	var pid int64 = 0;
+
+	for _, ph := range names {
+		node, err = find_node(pid, ph)
+		if err != nil {
+			return
+		}
+
+		pid = node.Id
 	}
 
-	return getDB().GetNode(did, file)
+	return
+}
+
+func find_node(pid int64, name string) (*RowNode, error) {
+	//读cache
+
+	//读db
 }
 
 func do_mkdirAll(name) error {
