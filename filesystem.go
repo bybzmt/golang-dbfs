@@ -14,12 +14,13 @@ var (
 var ErrDirNotEmpty = errors.New("Dir Not Empty")
 
 type filesystem struct {
-	DirCache *nodeCache
-	FileCache *nodeCache
-	StorageCache *storageCache
-	Master *sql.DB
-	Slave *sql.DB
-	Root *RowNode
+	DirNodeCache  *nodeCache
+	FileNodeCache *nodeCache
+	FileCache     *fileCache
+	StorageCache  *storageCache
+	Master        *sql.DB
+	Slave         *sql.DB
+	Root          *RowNode
 }
 
 func (s *filesystem) Chomd(name string, mode os.FileMode) error {
@@ -31,14 +32,23 @@ func (s *filesystem) Chtimes(name string, atime time.Time, mtime time.Time) erro
 }
 
 func (s *filesystem) Mkdir(name string, perm os.FileMode) error {
+	name = path.Clean(name)
 	dir, file := path.Split(name)
+	dir = strings.TrimLeft(dir, "/")
+	dirs := strings.Split(dir, "/")
 
-	node, err := find_path(dir)
-	if err != nil {
-		return err
+	node := s.Root
+
+	for _, dir := range dirs {
+		n, err := fs_find(s, node, dir)
+		if err != nil {
+			return err
+		}
+		node = n
 	}
 
-	return node.do_mkdir(file)
+	_, err := fs_create(node, name)
+	return err
 }
 
 func (s *filesystem) MkdirAll(name string, perm os.FileMode) error {
@@ -46,37 +56,47 @@ func (s *filesystem) MkdirAll(name string, perm os.FileMode) error {
 	name = strings.TrimLeft(name, "/")
 	names := strings.Split(name, "/")
 
-	dir = s.Root
+	node = s.Root
 
-	for _, ph := range names {
-		node, err := dir.find(ph)
+	for _, dir := range names {
+		n, err := fs_find(s, node, dir)
 		if err != nil {
-			node, err = dir.mkdir(ph)
+			n, err = fs_create(node, dir)
 			if err != nil {
 				return err
 			}
 		}
-		dir = node
+		node = n
 	}
 
 	return nil
 }
 
 func (s *filesystem) Remove(name string) error {
-	node, err := find_path(name)
-	if err != nil {
-		return err
+	name = path.Clean(name)
+	name = strings.TrimLeft(name, "/")
+	names := strings.Split(name, "/")
+
+	node = s.Root
+
+	for _, dir := range names {
+		n, err := fs_find(s, node, dir)
+		if err != nil {
+			return err
+		}
 	}
 
 	if node.IsDir() {
-		if find_has_child(node.Id) {
+		has, err := db_hasChild(s.Slave, node)
+		if err != nil {
+			return err
+		}
+		if has {
 			return ErrDirNotEmpty
 		}
 	}
 
-	//文件操作
-
-	return table_node.remove(node.Id)
+	return fs_remove(s, node)
 }
 
 func (s *filesystem) RemoveAll(name string) error {

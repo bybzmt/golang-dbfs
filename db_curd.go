@@ -44,7 +44,7 @@ func db_find(db *sql.DB, fi *RowNode, name string) (*RowNode, error) {
 	return r, nil
 }
 
-func db_findStorage(db *sql.DB, fi *RowNode) ([]RowStorage, error) {
+func db_findFile(db *sql.DB, fi *RowNode) ([]RowFile, error) {
 }
 
 func db_hasChild(db *sql.DB, fi *RowNode) (bool, error) {
@@ -64,11 +64,7 @@ func db_hasChild(db *sql.DB, fi *RowNode) (bool, error) {
 	return true, nil
 }
 
-func db_create(db *sql.DB, fi *RowNode, name string, isdir bool) (insertid int64, error) {
-	ctime := time.Now().Unix()
-
-	size := isdir ? -1 : 0
-
+func db_create(db *sql.DB, fi *RowNode, name string, size int64, ctime time.Time) (insertid int64, error) {
 	res, err := db.Exec(sql_mkdir, fi.id, name, size, ctime, ctime)
 	if err != nil {
 		return 0, err

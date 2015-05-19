@@ -40,6 +40,11 @@ func (fi *RowNode) Sys() interface{} {
 	return nil
 }
 
+type RowFile struct {
+	sid int64
+	path string
+}
+
 type RowStorage struct {
 	Id uint32
 	Host string
